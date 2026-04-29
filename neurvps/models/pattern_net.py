@@ -303,10 +303,10 @@ class PatternNet(nn.Module):
         N = image.shape[0]
 
         # Step 1: CNN — local appearance at every pixel
-        print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
+        
         x = self.cnn(image)                          # (N, embed_dim, H, W)
         _, C, H, W = x.shape
-
+        print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
         # Step 2: Flatten to sequence for transformer
         tokens = x.flatten(2).transpose(1, 2)        # (N, H*W, embed_dim)
 
