@@ -59,6 +59,7 @@ class ConvBnRelu(nn.Module):
         )
 
     def forward(self, x):
+        print(x.shape, x.is_contiguous(), x.dtype, x.device)
         return self.block(x)
 
 
