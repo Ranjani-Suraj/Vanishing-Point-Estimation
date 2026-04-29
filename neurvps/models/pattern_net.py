@@ -21,7 +21,7 @@ from typing import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+torch.backends.cudnn.benchmark = False  # temporarily
 
 class ASPP(nn.Module):
     def __init__(self, in_ch, out_ch, rates=(1, 4, 8, 16)):
