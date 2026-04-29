@@ -4,6 +4,7 @@ import warnings
 from glob import glob
 
 import torch
+os.environ["TORCH_CUDA_ARCH_LIST"] = torch.cuda.get_device_capability()[0]
 from torch import nn
 from torch.autograd import Function
 from torch.nn.modules.utils import _pair
