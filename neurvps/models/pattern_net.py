@@ -21,7 +21,7 @@ from typing import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-torch.backends.cudnn.benchmark = False  # temporarily
+ # temporarily
 
 class ASPP(nn.Module):
     def __init__(self, in_ch, out_ch, rates=(1, 4, 8, 16)):
@@ -102,7 +102,7 @@ class PatternCNNEncoder(nn.Module):
     """
     def __init__(self, embed_dim=64):
         super().__init__()
-
+        torch.backends.cudnn.benchmark = False 
         # Stage 1: 512×512 → 256×256, 32 channels
         # Captures fine-grained local appearance
         self.stage1 = nn.Sequential(
