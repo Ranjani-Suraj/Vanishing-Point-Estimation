@@ -3,7 +3,7 @@ io:
   datadir: data/su3/
   dataset: Wireframe
   resume_from: 
-  num_workers: 8
+  num_workers: 12
   tensorboard_port: 0
   validation_interval: 24000
   validation_debug: 120
