@@ -101,8 +101,7 @@ class PatternCNNEncoder(nn.Module):
     recurring visual elements like windows, columns, tiles.
     """
     def __init__(self, embed_dim=64):
-        super().__init__()
-        torch.backends.cudnn.benchmark = False 
+        super().__init__() 
         # Stage 1: 512×512 → 256×256, 32 channels
         # Captures fine-grained local appearance
         self.stage1 = nn.Sequential(
