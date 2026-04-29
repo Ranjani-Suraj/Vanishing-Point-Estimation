@@ -14,7 +14,7 @@ def load_cpp_ext(ext_name):
     import os
     root_dir = os.path.join(os.path.split(__file__)[0])
     src_dir = os.path.join(root_dir, "cpp")
-    os.environ["TORCH_CUDA_ARCH_LIST"] = "7.5+PTX"
+    os.environ["TORCH_CUDA_ARCH_LIST"] = "7.0"
     srcs = glob(f"{src_dir}/*.cu") + glob(f"{src_dir}/*.cpp")
     tar_dir = os.path.join(src_dir, "build", ext_name)
     os.makedirs(tar_dir, exist_ok=True)
