@@ -22,9 +22,7 @@ def load_cpp_ext(ext_name):
         name=ext_name,
         sources=srcs,  # leave whatever is already here unchanged
         extra_cflags=["-O3"],
-        extra_cuda_cflags=[
-            "-gencode=arch=compute_75,code=compute_75",  # sm_75 + PTX for forward compat
-        ],
+        extra_cuda_cflags = ['-gencode=arch=compute_70,code=sm_70'],
         build_directory=tar_dir,
         verbose=True,
     )
