@@ -59,7 +59,6 @@ class ConvBnRelu(nn.Module):
         )
 
     def forward(self, x):
-        print(x.shape, x.is_contiguous(), x.dtype, x.device)
         return self.block(x)
 
 
@@ -304,6 +303,7 @@ class PatternNet(nn.Module):
         N = image.shape[0]
 
         # Step 1: CNN — local appearance at every pixel
+        print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
         x = self.cnn(image)                          # (N, embed_dim, H, W)
         _, C, H, W = x.shape
 
