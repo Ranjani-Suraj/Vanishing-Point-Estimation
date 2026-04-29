@@ -59,11 +59,11 @@ class ConvBnRelu(nn.Module):
         )
 
     def forward(self, x):
-        print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
-        print("AT CRASH POINT:")
-        print("  benchmark:", torch.backends.cudnn.benchmark)
-        print("  deterministic:", torch.backends.cudnn.deterministic)
-        print("  use_deterministic_algorithms:", torch.are_deterministic_algorithms_enabled())
+        # print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
+        # print("AT CRASH POINT:")
+        # print("  benchmark:", torch.backends.cudnn.benchmark)
+        # print("  deterministic:", torch.backends.cudnn.deterministic)
+        # print("  use_deterministic_algorithms:", torch.are_deterministic_algorithms_enabled())
         return self.block(x)
 
 
