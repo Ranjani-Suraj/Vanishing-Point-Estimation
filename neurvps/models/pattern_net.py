@@ -19,7 +19,6 @@ compatible with conic convolution.
 import math
 from typing import OrderedDict
 import torch
-torch.backends.cudnn.enabled = False
 import torch.nn as nn
 import torch.nn.functional as F
 
