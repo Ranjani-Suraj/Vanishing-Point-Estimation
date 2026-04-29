@@ -94,9 +94,10 @@ class VanishingNet(nn.Module):
             y = backbone_feats
         # --- Stream 2: recurring pattern features (new) ---
         if self.ep !=2:
-            print("pstt feats", x.shape, x.is_contiguous(), x.dtype, x.device)
+            
             pattern_feats = self.pattern_net(images)  # (N, 64, 128, 128)
             x = pattern_feats
+            print("pstt feats", x.shape, x.is_contiguous(), x.dtype, x.device)
         # --- Concatenate along channel axis ---
         # Shapes are guaranteed to match:
         #   backbone: stride 4 → 512/4 = 128
