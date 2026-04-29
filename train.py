@@ -154,7 +154,9 @@ def main():
     if torch.cuda.is_available():
         device_name = "cuda"
         torch.backends.cudnn.benchmark = True
-        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.deterministic = False  # changed
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
         torch.cuda.manual_seed(0)
         print("Let's use", torch.cuda.device_count(), "GPU(s)!")
     else:
