@@ -55,7 +55,7 @@ class EdgeAttentionGate(nn.Module):
         # Compute edge magnitude per channel
         ex = F.conv2d(x, self.sobel_x, padding=1, groups=x.shape[1])
         ey = F.conv2d(x, self.sobel_y, padding=1, groups=x.shape[1])
-        edge_mag = (ex ** 2 + ey ** 2).sqrt()
+        edge_mag = (ex ** 2 + ey ** 2 + 1e-8).sqrt()
 
         # Collapse channels to single edge density map
         edge_map = edge_mag.mean(dim=1, keepdim=True)  # (N, 1, H, W)
