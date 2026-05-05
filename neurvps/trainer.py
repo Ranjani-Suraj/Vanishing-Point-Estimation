@@ -32,6 +32,27 @@ def project_vpt_to_image(vpt, focal_length=2.1875, image_size=512):
     x = vpt[0] / vpt[2] * focal_length * (image_size / 2) + (image_size / 2)
     y = -vpt[1] / vpt[2] * focal_length * (image_size / 2) + (image_size / 2)
     return (x, y)
+    
+def get_pattern_saliency(model, image_tensor, device):
+    """
+    Compute gradient of VP confidence w.r.t input image.
+    High gradient pixels are the ones the pattern encoder
+    responded to most strongly.
+    """
+    image = image_tensor.unsqueeze(0).to(device).requires_grad_(True)
+    
+    # Forward through pattern encoder only
+    features = model.module.pattern_net.cnn(image)  # (1, 64, 128, 128)
+    
+    # Collapse to scalar and backprop
+    features.mean().backward()
+    
+    # Gradient magnitude across channels
+    saliency = image.grad.data.abs().squeeze()  # (3, 512, 512)
+    saliency = saliency.max(dim=0).values       # (512, 512)
+    saliency = (saliency - saliency.min()) / (saliency.max() - saliency.min())
+    
+    return saliency.cpu().numpy()
 
 def visualize_epoch(model, val_loader, device, outdir, epoch,
                     n_images=4, focal_length=2.1875):
