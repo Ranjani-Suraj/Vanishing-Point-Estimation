@@ -21,7 +21,53 @@ from typing import OrderedDict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
- # temporarily
+
+class EdgeAttentionGate(nn.Module):
+    """
+    Computes a spatial attention mask from local edge density.
+    Suppresses flat regions, amplifies structured/repeated patterns.
+    """
+    def __init__(self, channels):
+        super().__init__()
+        # Sobel filters to detect edges in x and y
+        sobel_x = torch.tensor([
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1]
+        ], dtype=torch.float32)
+        sobel_y = sobel_x.T
+
+        # Register as fixed (non-learnable) filters
+        self.register_buffer("sobel_x",
+            sobel_x.view(1, 1, 3, 3).repeat(channels, 1, 1, 1))
+        self.register_buffer("sobel_y",
+            sobel_y.view(1, 1, 3, 3).repeat(channels, 1, 1, 1))
+
+        # Learnable refinement on top of edge signal
+        self.refine = nn.Sequential(
+            nn.Conv2d(1, 16, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(16, 1, 1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        # Compute edge magnitude per channel
+        ex = F.conv2d(x, self.sobel_x, padding=1, groups=x.shape[1])
+        ey = F.conv2d(x, self.sobel_y, padding=1, groups=x.shape[1])
+        edge_mag = (ex ** 2 + ey ** 2).sqrt()
+
+        # Collapse channels to single edge density map
+        edge_map = edge_mag.mean(dim=1, keepdim=True)  # (N, 1, H, W)
+
+        # Normalize to [0, 1]
+        edge_map = edge_map / (edge_map.amax(dim=(2, 3), keepdim=True) + 1e-6)
+
+        # Learnable refinement
+        attention = self.refine(edge_map)  # (N, 1, H, W)
+
+        return x * attention
+
 
 class ASPP(nn.Module):
     def __init__(self, in_ch, out_ch, rates=(1, 4, 8, 16)):
@@ -59,11 +105,6 @@ class ConvBnRelu(nn.Module):
         )
 
     def forward(self, x):
-        # print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
-        # print("AT CRASH POINT:")
-        # print("  benchmark:", torch.backends.cudnn.benchmark)
-        # print("  deterministic:", torch.backends.cudnn.deterministic)
-        # print("  use_deterministic_algorithms:", torch.are_deterministic_algorithms_enabled())
         return self.block(x)
 
 
@@ -101,33 +142,29 @@ class PatternCNNEncoder(nn.Module):
     recurring visual elements like windows, columns, tiles.
     """
     def __init__(self, embed_dim=64):
-        super().__init__() 
-        # Stage 1: 512×512 → 256×256, 32 channels
-        # Captures fine-grained local appearance
+        super().__init__()
         self.stage1 = nn.Sequential(
             ConvBnRelu(3, 32, kernel_size=7, stride=2, padding=3),
             ResidualBlock(32),
             ResidualBlock(32),
         )
+        self.edge_gate1 = EdgeAttentionGate(32)
 
-        # Stage 2: 256×256 → 128×128, embed_dim channels
-        # Captures broader patch appearance context
-        # Output spatial size matches backbone exactly
         self.stage2 = nn.Sequential(
             ConvBnRelu(32, embed_dim, stride=2),
             ResidualBlock(embed_dim),
             ResidualBlock(embed_dim),
         )
+        self.edge_gate2 = EdgeAttentionGate(embed_dim)
+
         self.aspp = ASPP(embed_dim, embed_dim)
 
     def forward(self, x):
-        """
-        x      : (N, 3, 512, 512)
-        returns: (N, embed_dim, 128, 128)
-        """
-        x = self.stage1(x)   # (N, 32,        256, 256)
-        x = self.stage2(x)   # (N, embed_dim, 128, 128)
-        x = self.aspp(x)
+        x = self.stage1(x)       # (N, 32, 256, 256)
+        x = self.edge_gate1(x)   # suppress flat regions early
+        x = self.stage2(x)       # (N, embed_dim, 128, 128)
+        x = self.edge_gate2(x)   # refine at output scale
+        x = self.aspp(x)         # multi-scale fusion
         return x
 
 
@@ -142,7 +179,7 @@ class PositionalEncoding2D(nn.Module):
     Gives the transformer spatial awareness — without this,
     the transformer has no way to reason about whether
     similar patches are spatially arranged in a perspective-
-    consistent way (i.e. along a line toward the VP).
+    consistent way  
 
     Encodes row and column positions separately using
     sin/cos at multiple frequencies, then concatenates.
@@ -249,7 +286,7 @@ class PatternNet(nn.Module):
 
     Pipeline:
         Image
-          → CNN encoder     (local patch appearance per pixel)
+          → encoder     (local patch appearance per pixel)
           → flatten to seq
           → pos encoding    (spatial location per pixel)
           → transformer     (recurring pattern context per pixel)
@@ -307,10 +344,9 @@ class PatternNet(nn.Module):
         N = image.shape[0]
 
         # Step 1: CNN — local appearance at every pixel
-        
         x = self.cnn(image)                          # (N, embed_dim, H, W)
         _, C, H, W = x.shape
-        #print("checking ",x.shape, x.is_contiguous(), x.dtype, x.device)
+
         # Step 2: Flatten to sequence for transformer
         tokens = x.flatten(2).transpose(1, 2)        # (N, H*W, embed_dim)
 
