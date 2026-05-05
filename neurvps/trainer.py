@@ -19,6 +19,99 @@ from tensorboardX import SummaryWriter
 import neurvps.utils as utils
 from neurvps.config import C, M
 
+import numpy as np   
+import matplotlib.cm as cm
+
+def project_vpt_to_image(vpt, focal_length=2.1875, image_size=512):
+    """
+    Convert a unit 3D vanishing point vector to pixel coordinates.
+    Returns (x, y) in pixel space, or None if behind the camera.
+    """
+    if vpt[2] <= 0:
+        return None
+    x = vpt[0] / vpt[2] * focal_length * (image_size / 2) + (image_size / 2)
+    y = -vpt[1] / vpt[2] * focal_length * (image_size / 2) + (image_size / 2)
+    return (x, y)
+
+def visualize_epoch(model, val_loader, device, outdir, epoch,
+                    n_images=4, focal_length=2.1875):
+    model.eval()
+
+    # Grab one batch from the val_loader
+    batch_images, batch_meta = next(iter(val_loader))
+    
+    # Take first n_images from the batch
+    batch_images = batch_images[:n_images]
+    batch_vpts = batch_meta["vpts"][:n_images]
+
+    colors = ["red", "blue", "green"]
+    labels = ["VP1", "VP2", "VP3"]
+
+    fig, axes = plt.subplots(2, n_images, figsize=(5 * n_images, 10))
+    fig.suptitle(f"Epoch {epoch} — Predicted vs Ground Truth Vanishing Points",
+                 fontsize=14)
+
+    with torch.no_grad():
+        for col in range(n_images):
+            image_tensor = batch_images[col]
+            gt_vpts = batch_vpts[col].numpy()  # (3, 3)
+
+            image_np = image_tensor.permute(1, 2, 0).numpy()
+            image_np = (image_np / 255.0).clip(0, 1)
+
+            # Get saliency
+            saliency = get_pattern_saliency(model, image_tensor, device)
+
+            for row, ax_title in enumerate(["Ground Truth + Saliency", "ASPP Responses"]):
+                ax = axes[row][col]
+                ax.imshow(image_np)
+                ax.set_title(f"Image {col} — {ax_title}")
+                ax.axis("off")
+
+                if row == 0:
+                    # Overlay saliency map
+                    ax.imshow(saliency, alpha=0.4, cmap="hot")
+                    # Draw GT vanishing points
+                    for vpt, color, label in zip(gt_vpts, colors, labels):
+                        px = project_vpt_to_image(vpt, focal_length)
+                        if px is not None:
+                            draw_vanishing_lines(ax, px, color=color)
+                            ax.scatter(*px, c=color, s=80, zorder=5)
+                            ax.annotate(
+                                label, xy=px, fontsize=7, color=color,
+                                xytext=(10, 10), textcoords="offset points"
+                            )
+                else:
+                    # Overlay ASPP branch responses
+                    responses = get_aspp_responses(model, image_tensor, device)
+                    rates = [1, 4, 8, 16]
+                    # Blend all 4 branches into one RGBA overlay
+                    combined = np.zeros((*responses[0].shape, 4))
+                    branch_colors = [(1,0,0), (0,1,0), (0,0,1), (1,1,0)]
+                    for resp, bc in zip(responses, branch_colors):
+                        for c_idx, c_val in enumerate(bc):
+                            combined[:, :, c_idx] += resp * c_val * 0.3
+                    combined[:, :, 3] = np.clip(
+                        sum(responses) / len(responses), 0, 1
+                    ) * 0.5
+                    ax.imshow(
+                        np.kron(combined, np.ones((4, 4, 1))),  # upsample 128→512
+                        extent=[0, 512, 512, 0]
+                    )
+                    # Add legend for dilation rates
+                    for bc, rate in zip(branch_colors, rates):
+                        ax.plot([], [], color=bc, label=f"dilation={rate}")
+                    ax.legend(fontsize=6, loc="lower right")
+
+    plt.tight_layout()
+    viz_dir = os.path.join(outdir, "viz")
+    os.makedirs(viz_dir, exist_ok=True)
+    save_path = os.path.join(viz_dir, f"epoch_{epoch:03d}.png")
+    plt.savefig(save_path, dpi=100, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved visualization to {save_path}")
+
+
 
 class Trainer(object):
     def __init__(
@@ -155,7 +248,7 @@ class Trainer(object):
                 osp.join(self.out, "checkpoint_latest.pth.tar"),
                 osp.join(self.out, "checkpoint_best.pth.tar"),
             )
-
+        visualize_epoch(self.model, self.val_loader, self.device, self.out, self.epoch)
         if training:
             self.model.train()
 
